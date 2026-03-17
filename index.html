@@ -89,6 +89,24 @@
       box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
       padding: 18px;
     }
+    .modal-card.minimized .modal-body {
+      display: none;
+    }
+    .modal-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .modal-toggle {
+      border: 1px solid #d1d5db;
+      background: #fff;
+      color: #111827;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
     .modal-card h3 { margin: 0 0 8px; }
     .modal-card p { margin: 0 0 14px; color: #4b5563; font-size: 13px; }
     .modal-actions {
@@ -122,6 +140,19 @@
     }
     @media (max-width: 720px) {
       .panel { top: auto; bottom: 12px; }
+      .modal {
+        align-items: end;
+        padding: 10px;
+      }
+      .modal-card {
+        width: 100%;
+        max-width: none;
+        border-radius: 16px 16px 12px 12px;
+        padding: 14px;
+      }
+      .modal-card.minimized {
+        padding-bottom: 12px;
+      }
     }
   </style>
 </head>
@@ -171,12 +202,17 @@
 
   <div class="modal" id="modal">
     <div class="modal-card">
-      <h3>Registrar visita</h3>
-      <p id="modalText">Selecciona el resultado para este punto.</p>
-      <div class="modal-actions">
-        <button class="modal-btn azul" data-status="azul">Azul</button>
-        <button class="modal-btn rojo" data-status="rojo">Rojo</button>
-        <button class="modal-btn neutral" data-status="neutral">Gris</button>
+      <div class="modal-header-row">
+        <h3>Registrar visita</h3>
+        <button class="modal-toggle" id="modalToggleBtn" type="button">Minimizar</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <p id="modalText">Selecciona el resultado para este punto.</p>
+        <div class="modal-actions">
+          <button class="modal-btn azul" data-status="azul">Azul</button>
+          <button class="modal-btn rojo" data-status="rojo">Rojo</button>
+          <button class="modal-btn neutral" data-status="neutral">Gris</button>
+        </div>
       </div>
       <button class="modal-btn cancel" id="cancelBtn">Cancelar</button>
     </div>
@@ -244,13 +280,18 @@
     ).addTo(map);
 
     const modal = document.getElementById('modal');
+    const modalCard = modal.querySelector('.modal-card');
     const modalText = document.getElementById('modalText');
+    const modalToggleBtn = document.getElementById('modalToggleBtn');
     const cancelBtn = document.getElementById('cancelBtn');
+    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
     let pendingLatLng = null;
     let pendingContext = null;
     let markersLayer = L.layerGroup().addTo(map);
     let seccionesDataRef = null;
     let coloniasDataRef = null;
+    let touchMoved = false;
+    let touchStartedAt = 0;
 
     function styleMunicipio() {
       return { color: '#f59e0b', weight: 3, fillOpacity: 0.03 };
@@ -328,6 +369,8 @@
     function openModal(latlng) {
       pendingLatLng = latlng;
       pendingContext = inferContext(latlng);
+      modalCard.classList.remove('minimized');
+      modalToggleBtn.textContent = 'Minimizar';
       const details = [];
       if (pendingContext.seccion) details.push(`Sección ${pendingContext.seccion}`);
       if (pendingContext.colonia) details.push(pendingContext.colonia);
@@ -340,6 +383,15 @@
       pendingLatLng = null;
       pendingContext = null;
       modal.classList.remove('show');
+    }
+
+    function shouldOpenTouchModal(originalEvent) {
+      if (!isTouchDevice) return true;
+      if (!originalEvent) return false;
+      const touches = originalEvent.touches || originalEvent.changedTouches;
+      if (touchMoved) return false;
+      if (touches && touches.length > 1) return false;
+      return Date.now() - touchStartedAt < 400;
     }
 
     async function saveMark(status) {
@@ -399,9 +451,27 @@
       });
     };
 
-    map.on('click', (e) => openModal(e.latlng));
+    map.on('click', (e) => {
+      if (isTouchDevice && !shouldOpenTouchModal(e.originalEvent)) return;
+      openModal(e.latlng);
+    });
     map.on('contextmenu', (e) => openModal(e.latlng));
+    map.on('movestart zoomstart', () => {
+      touchMoved = true;
+      if (isTouchDevice) closeModal();
+    });
+    map.on('touchstart', () => {
+      touchMoved = false;
+      touchStartedAt = Date.now();
+    });
+    map.on('touchmove', () => {
+      touchMoved = true;
+    });
     cancelBtn.addEventListener('click', closeModal);
+    modalToggleBtn.addEventListener('click', () => {
+      const minimized = modalCard.classList.toggle('minimized');
+      modalToggleBtn.textContent = minimized ? 'Expandir' : 'Minimizar';
+    });
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeModal();
     });
