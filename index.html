@@ -230,6 +230,18 @@
       document.getElementById('status').textContent = text;
     }
 
+    window.addEventListener('error', (event) => {
+      const message = event?.error?.stack || event?.message || 'Error desconocido en frontend';
+      console.error(event?.error || event);
+      setStatus('Error frontend: ' + String(message).slice(0, 240));
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason = event?.reason?.stack || event?.reason?.message || String(event?.reason || 'Promesa rechazada');
+      console.error(event?.reason || event);
+      setStatus('Error frontend: ' + String(reason).slice(0, 240));
+    });
+
     function styleMunicipio() {
       return { color: '#f59e0b', weight: 3, fillOpacity: 0.03 };
     }
@@ -394,11 +406,13 @@
     });
 
     async function main() {
+      setStatus('Descargando GeoJSON oficiales...');
       const [municipioData, seccionesData, coloniasData] = await Promise.all([
         loadJson('data_procesada/municipio_santiago.geojson'),
         loadJson('data_procesada/secciones_santiago.geojson'),
         loadJson('data_procesada/colonias_santiago.geojson')
       ]);
+      setStatus('GeoJSON cargados. Construyendo capas...');
       seccionesDataRef = seccionesData;
       coloniasDataRef = coloniasData;
 
@@ -442,12 +456,14 @@
 
       document.getElementById('metricSecciones').textContent = seccionesData.features.length;
       document.getElementById('metricColonias').textContent = coloniasData.features.length;
+      setStatus('Capas listas. Ajustando vista...');
 
       const bounds = municipioLayer.getBounds();
       if (bounds.isValid()) {
         map.fitBounds(bounds, { padding: [20, 20] });
       }
 
+      setStatus('Cargando marcas guardadas...');
       await loadMarks();
     }
 
