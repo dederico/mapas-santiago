@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapas Santiago</title>
+  <link rel="stylesheet" href="vendor/leaflet.css">
+  <style>
+    html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; }
+    body { background: #e7ecef; }
+    #map { height: 100vh; width: 100%; }
+    .panel {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 1000;
+      width: min(360px, calc(100vw - 24px));
+      background: rgba(255, 255, 255, 0.97);
+      border-radius: 14px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 14px 16px 10px;
+      background: linear-gradient(135deg, #16324f, #1f6f8b);
+      color: #fff;
+    }
+    .panel-header h1 { margin: 0; font-size: 18px; }
+    .panel-header p { margin: 6px 0 0; font-size: 12px; opacity: 0.9; }
+    .panel-body {
+      padding: 12px 16px 14px;
+      font-size: 13px;
+      color: #1f2937;
+      line-height: 1.4;
+    }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .metric {
+      background: #f4f7f9;
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .metric strong {
+      display: block;
+      font-size: 20px;
+      color: #16324f;
+    }
+    .metric span {
+      font-size: 11px;
+      color: #4b5563;
+    }
+    .legend {
+      display: grid;
+      gap: 6px;
+      margin: 10px 0;
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .swatch {
+      width: 16px;
+      height: 12px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 0, 0, 0.25);
+    }
+    .status { margin-top: 8px; font-size: 12px; color: #374151; }
+    .sources { margin-top: 10px; font-size: 11px; color: #6b7280; }
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      background: rgba(0, 0, 0, 0.5);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal.show { display: flex; }
+    .modal-card {
+      width: min(360px, 100%);
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+      padding: 18px;
+    }
+    .modal-card h3 { margin: 0 0 8px; }
+    .modal-card p { margin: 0 0 14px; color: #4b5563; font-size: 13px; }
+    .modal-actions {
+      display: grid;
+      gap: 8px;
+    }
+    .modal-btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .azul { background: #2563eb; }
+    .rojo { background: #dc2626; }
+    .neutral { background: #6b7280; }
+    .cancel {
+      margin-top: 10px;
+      width: 100%;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      color: #111827;
+    }
+    .mark-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    @media (max-width: 720px) {
+      .panel { top: auto; bottom: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h1>Santiago</h1>
+      <p>Localhost con capas oficiales y capturas rojo/azul/gris</p>
+    </div>
+    <div class="panel-body">
+      <div class="metric-grid">
+        <div class="metric">
+          <strong id="metricSecciones">-</strong>
+          <span>Secciones oficiales</span>
+        </div>
+        <div class="metric">
+          <strong id="metricColonias">-</strong>
+          <span>Colonias oficiales</span>
+        </div>
+        <div class="metric">
+          <strong id="metricMarcas">-</strong>
+          <span>Marcas guardadas</span>
+        </div>
+        <div class="metric">
+          <strong id="metricDistrito">24</strong>
+          <span>Distrito local 2024</span>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-row"><span class="swatch" style="background:#f59e0b"></span>Municipio de Santiago</div>
+        <div class="legend-row"><span class="swatch" style="background:#2563eb"></span>Secciones oficiales IEEPC 2024</div>
+        <div class="legend-row"><span class="swatch" style="background:#16a34a"></span>Colonias oficiales IEEPC 2024</div>
+        <div class="legend-row"><span class="swatch" style="background:#2563eb"></span>Azul: abrió / positivo</div>
+        <div class="legend-row"><span class="swatch" style="background:#dc2626"></span>Rojo: abrió / negativo</div>
+        <div class="legend-row"><span class="swatch" style="background:#6b7280"></span>Gris: no abrió</div>
+      </div>
+
+      <div class="status" id="status">Cargando capas oficiales de Santiago...</div>
+      <div class="sources">
+        Limitación actual: los predios siguen siendo visuales; las capturas se guardan como marcas puntuales persistidas en SQLite local.
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal">
+    <div class="modal-card">
+      <h3>Registrar visita</h3>
+      <p id="modalText">Selecciona el resultado para este punto.</p>
+      <div class="modal-actions">
+        <button class="modal-btn azul" data-status="azul">Azul</button>
+        <button class="modal-btn rojo" data-status="rojo">Rojo</button>
+        <button class="modal-btn neutral" data-status="neutral">Gris</button>
+      </div>
+      <button class="modal-btn cancel" id="cancelBtn">Cancelar</button>
+    </div>
+  </div>
+
+  <script src="vendor/leaflet.js"></script>
+  <script>
+    const API_BASE = '/api';
+    const map = L.map('map', { preferCanvas: true }).setView([25.423, -100.15], 11);
+
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    const sat = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {
+        attribution: 'Tiles &copy; Esri',
+        maxZoom: 19
+      }
+    );
+
+    const predios = L.tileLayer(
+      'https://{s}-ecngn.cartodata.com/tiles/35n466b1-66a4298979994257b759b68629147db51f76f69b/{z}/{x}/{y}.png',
+      {
+        subdomains: ['t0c', 't1c', 't2c'],
+        minZoom: 18,
+        maxZoom: 24,
+        opacity: 0.95,
+        attribution: 'Visor Santiago'
+      }
+    ).addTo(map);
+
+    const overlayControl = L.control.layers(
+      { 'OSM': osm, 'Satelital': sat },
+      { 'Predio visual': predios },
+      { collapsed: false }
+    ).addTo(map);
+
+    const modal = document.getElementById('modal');
+    const modalText = document.getElementById('modalText');
+    const cancelBtn = document.getElementById('cancelBtn');
+    let pendingLatLng = null;
+    let pendingContext = null;
+    let markersLayer = L.layerGroup().addTo(map);
+    let seccionesDataRef = null;
+    let coloniasDataRef = null;
+
+    function setStatus(text) {
+      document.getElementById('status').textContent = text;
+    }
+
+    function styleMunicipio() {
+      return { color: '#f59e0b', weight: 3, fillOpacity: 0.03 };
+    }
+
+    function styleSeccion() {
+      return { color: '#2563eb', weight: 1.4, fillOpacity: 0.04 };
+    }
+
+    function styleColonia() {
+      return { color: '#16a34a', weight: 1, fillOpacity: 0.02 };
+    }
+
+    function iconForStatus(status) {
+      const colors = { azul: '#2563eb', rojo: '#dc2626', neutral: '#6b7280' };
+      return L.divIcon({
+        className: '',
+        html: `<div class="mark-icon" style="background:${colors[status] || colors.neutral}"></div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
+      });
+    }
+
+    async function fetchJson(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(url + ' -> HTTP ' + res.status);
+      return res.json();
+    }
+
+    async function loadJson(path) {
+      return fetchJson(path);
+    }
+
+    function pointInRing(point, ring) {
+      const [x, y] = point;
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = ring[i][0], yi = ring[i][1];
+        const xj = ring[j][0], yj = ring[j][1];
+        const intersect = ((yi > y) !== (yj > y)) &&
+          (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function pointInGeometry(latlng, geometry) {
+      const point = [latlng.lng, latlng.lat];
+      if (!geometry) return false;
+      if (geometry.type === 'Polygon') {
+        return geometry.coordinates.some((ring) => pointInRing(point, ring));
+      }
+      if (geometry.type === 'MultiPolygon') {
+        return geometry.coordinates.some((poly) => poly.some((ring) => pointInRing(point, ring)));
+      }
+      return false;
+    }
+
+    function inferContext(latlng) {
+      const context = { seccion: '', colonia: '', cp: '' };
+      if (seccionesDataRef) {
+        const hit = seccionesDataRef.features.find((f) => pointInGeometry(latlng, f.geometry));
+        if (hit) context.seccion = String(hit.properties?.SECCION || '');
+      }
+      if (coloniasDataRef) {
+        const hit = coloniasDataRef.features.find((f) => pointInGeometry(latlng, f.geometry));
+        if (hit) {
+          context.colonia = String(hit.properties?.NOMBRE || '');
+          context.cp = String(hit.properties?.CP || '');
+        }
+      }
+      return context;
+    }
+
+    function openModal(latlng) {
+      pendingLatLng = latlng;
+      pendingContext = inferContext(latlng);
+      const details = [];
+      if (pendingContext.seccion) details.push(`Sección ${pendingContext.seccion}`);
+      if (pendingContext.colonia) details.push(pendingContext.colonia);
+      if (pendingContext.cp) details.push(`CP ${pendingContext.cp}`);
+      modalText.textContent = `Punto ${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}${details.length ? ' · ' + details.join(' · ') : ''}`;
+      modal.classList.add('show');
+    }
+
+    function closeModal() {
+      pendingLatLng = null;
+      pendingContext = null;
+      modal.classList.remove('show');
+    }
+
+    async function saveMark(status) {
+      if (!pendingLatLng) return;
+      await fetchJson(`${API_BASE}/marks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lat: pendingLatLng.lat,
+            lng: pendingLatLng.lng,
+            status,
+            seccion: pendingContext?.seccion || '',
+            colonia: pendingContext?.colonia || '',
+            cp: pendingContext?.cp || ''
+          })
+        });
+      closeModal();
+      await loadMarks();
+    }
+
+    async function deleteMark(id) {
+      await fetchJson(`${API_BASE}/marks/${id}`, { method: 'DELETE' });
+      await loadMarks();
+    }
+
+    async function loadMarks() {
+      const marks = await fetchJson(`${API_BASE}/marks`);
+      markersLayer.clearLayers();
+      const counts = { azul: 0, rojo: 0, neutral: 0 };
+
+      for (const mark of marks) {
+        counts[mark.status] = (counts[mark.status] || 0) + 1;
+        const marker = L.marker([mark.lat, mark.lng], { icon: iconForStatus(mark.status) });
+        const detailBits = [
+          mark.seccion ? `Sección: ${mark.seccion}` : '',
+          mark.colonia ? `Colonia: ${mark.colonia}` : '',
+          mark.cp ? `CP: ${mark.cp}` : ''
+        ].filter(Boolean).join('<br>');
+        marker.bindPopup(
+          `<strong>${mark.status.toUpperCase()}</strong><br>` +
+          `${Number(mark.lat).toFixed(6)}, ${Number(mark.lng).toFixed(6)}<br>` +
+          `${detailBits ? detailBits + '<br>' : ''}` +
+          `${mark.created_at || ''}<br>` +
+          `<button onclick="window.deleteMarkById(${mark.id})">Eliminar</button>`
+        );
+        markersLayer.addLayer(marker);
+      }
+
+      document.getElementById('metricMarcas').textContent = marks.length;
+      setStatus(`Listo. Marcas guardadas: ${marks.length} · Azul ${counts.azul || 0} · Rojo ${counts.rojo || 0} · Gris ${counts.neutral || 0}.`);
+    }
+
+    window.deleteMarkById = (id) => {
+      deleteMark(id).catch(err => {
+        console.error(err);
+        setStatus('Error eliminando marca: ' + err.message);
+      });
+    };
+
+    map.on('click', (e) => openModal(e.latlng));
+    map.on('contextmenu', (e) => openModal(e.latlng));
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+    document.querySelectorAll('[data-status]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        saveMark(btn.dataset.status).catch(err => {
+          console.error(err);
+          setStatus('Error guardando marca: ' + err.message);
+          closeModal();
+        });
+      });
+    });
+
+    async function main() {
+      const [municipioData, seccionesData, coloniasData] = await Promise.all([
+        loadJson('data_procesada/municipio_santiago.geojson'),
+        loadJson('data_procesada/secciones_santiago.geojson'),
+        loadJson('data_procesada/colonias_santiago.geojson')
+      ]);
+      seccionesDataRef = seccionesData;
+      coloniasDataRef = coloniasData;
+
+      const municipioLayer = L.geoJSON(municipioData, {
+        style: styleMunicipio,
+        onEachFeature: (feature, layer) => {
+          layer.bindPopup('Municipio: ' + (feature.properties.NOMBRE || 'Santiago'));
+          layer.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            openModal(e.latlng);
+          });
+        }
+      }).addTo(map);
+
+      const seccionesLayer = L.geoJSON(seccionesData, {
+        style: styleSeccion,
+        onEachFeature: (feature, layer) => {
+          layer.bindPopup('Sección ' + feature.properties.SECCION);
+          layer.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            openModal(e.latlng);
+          });
+        }
+      }).addTo(map);
+
+      const coloniasLayer = L.geoJSON(coloniasData, {
+        style: styleColonia,
+        onEachFeature: (feature, layer) => {
+          const p = feature.properties || {};
+          layer.bindPopup(`<strong>${p.NOMBRE || 'Colonia'}</strong><br>CP: ${p.CP || 's/d'}`);
+          layer.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            openModal(e.latlng);
+          });
+        }
+      });
+
+      overlayControl.addOverlay(municipioLayer, 'Municipio');
+      overlayControl.addOverlay(seccionesLayer, 'Secciones');
+      overlayControl.addOverlay(coloniasLayer, 'Colonias');
+
+      document.getElementById('metricSecciones').textContent = seccionesData.features.length;
+      document.getElementById('metricColonias').textContent = coloniasData.features.length;
+
+      const bounds = municipioLayer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+      }
+
+      await loadMarks();
+    }
+
+    main().catch(err => {
+      console.error(err);
+      setStatus('Error cargando capas: ' + err.message);
+    });
+  </script>
+</body>
+</html>

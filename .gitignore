@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+data_santiago.sqlite
+data_fuente/

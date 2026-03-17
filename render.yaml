@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: mapas-santiago
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: mapas-santiago-data
+      mountPath: /var/data
+      sizeGB: 1
