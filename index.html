@@ -184,12 +184,36 @@
 
   <script src="vendor/leaflet.js"></script>
   <script>
+    function setStatus(text) {
+      document.getElementById('status').textContent = text;
+    }
+
+    window.addEventListener('error', (event) => {
+      const message = event?.error?.stack || event?.message || 'Error desconocido en frontend';
+      console.error(event?.error || event);
+      setStatus('Error frontend: ' + String(message).slice(0, 240));
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason = event?.reason?.stack || event?.reason?.message || String(event?.reason || 'Promesa rechazada');
+      console.error(event?.reason || event);
+      setStatus('Error frontend: ' + String(reason).slice(0, 240));
+    });
+
+    if (!window.L) {
+      setStatus('Error frontend: Leaflet no cargó');
+      throw new Error('Leaflet no cargó');
+    }
+
+    L.Icon.Default.imagePath = 'vendor/';
+
     const API_BASE = '/api';
-    const map = L.map('map', { preferCanvas: true }).setView([25.423, -100.15], 11);
+    const CENTER = [25.423, -100.15];
+    const map = L.map('map', { tapTolerance: 20 });
 
     const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
+    });
 
     const sat = L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -209,7 +233,11 @@
         opacity: 0.95,
         attribution: 'Visor Santiago'
       }
-    ).addTo(map);
+    );
+
+    osm.addTo(map);
+    predios.addTo(map);
+    map.setView(CENTER, 11);
 
     const overlayControl = L.control.layers(
       { 'OSM': osm, 'Satelital': sat },
@@ -225,22 +253,6 @@
     let markersLayer = L.layerGroup().addTo(map);
     let seccionesDataRef = null;
     let coloniasDataRef = null;
-
-    function setStatus(text) {
-      document.getElementById('status').textContent = text;
-    }
-
-    window.addEventListener('error', (event) => {
-      const message = event?.error?.stack || event?.message || 'Error desconocido en frontend';
-      console.error(event?.error || event);
-      setStatus('Error frontend: ' + String(message).slice(0, 240));
-    });
-
-    window.addEventListener('unhandledrejection', (event) => {
-      const reason = event?.reason?.stack || event?.reason?.message || String(event?.reason || 'Promesa rechazada');
-      console.error(event?.reason || event);
-      setStatus('Error frontend: ' + String(reason).slice(0, 240));
-    });
 
     function styleMunicipio() {
       return { color: '#f59e0b', weight: 3, fillOpacity: 0.03 };
