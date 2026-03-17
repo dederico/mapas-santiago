@@ -227,8 +227,7 @@
       'https://{s}-ecngn.cartodata.com/tiles/35n466b1-66a4298979994257b759b68629147db51f76f69b/{z}/{x}/{y}.png',
       {
         subdomains: ['t0c', 't1c', 't2c'],
-        minZoom: 0,
-        minNativeZoom: 18,
+        minZoom: 18,
         maxZoom: 24,
         opacity: 0.95,
         attribution: 'Visor Santiago'
@@ -236,7 +235,6 @@
     );
 
     osm.addTo(map);
-    predios.addTo(map);
     map.setView(CENTER, 11);
 
     const overlayControl = L.control.layers(
